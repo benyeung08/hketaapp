@@ -1,0 +1,113 @@
+name: Build APK - Vercel Final FIXED
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Create project - Load Vercel
+        run: |
+          rm -rf app
+          mkdir -p app/src/main/java/com/hkbus/allinone
+          mkdir -p app/src/main/res/values
+          cat > settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
+          }
+          include ':app'
+          EOF
+          cat > build.gradle <<'EOF'
+          plugins { id 'com.android.application' version '8.2.2' apply false }
+          EOF
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=true
+          EOF
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.hkbus.allinone'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.hkbus.allinone"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 13
+                  versionName "2.2-fixed-sdk"
+              }
+          }
+          EOF
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources><string name="app_name">全港交通</string></resources>
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+            <application android:label="@string/app_name" android:theme="@android:style/Theme.NoTitleBar" android:hardwareAccelerated="true" android:usesCleartextTraffic="true">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          cat > app/src/main/java/com/hkbus/allinone/MainActivity.java <<'EOF'
+          package com.hkbus.allinone;
+          import android.app.Activity; import android.os.Bundle; import android.webkit.*;
+          public class MainActivity extends Activity {
+              WebView wv;
+              protected void onCreate(Bundle b){
+                  super.onCreate(b);
+                  wv=new WebView(this);
+                  wv.getSettings().setJavaScriptEnabled(true);
+                  wv.getSettings().setDomStorageEnabled(true);
+                  wv.getSettings().setGeolocationEnabled(true);
+                  wv.setWebChromeClient(new WebChromeClient(){
+                      public void onGeolocationPermissionsShowPrompt(String o, GeolocationPermissions.Callback c){c.invoke(o,true,false);}
+                  });
+                  wv.setWebViewClient(new WebViewClient());
+                  wv.loadUrl("https://hketaapp.vercel.app");
+                  setContentView(wv);
+              }
+              public void onBackPressed(){ if(wv.canGoBack()) wv.goBack(); else super.onBackPressed(); }
+          }
+          EOF
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle 8.5 - NO android-actions
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+          cache-disabled: true
+
+      # 關鍵修復：唔用 android-actions/setup-android@v3，改用 runner 自帶 SDK
+      - name: Install Android SDK 34
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls $ANDROID_HOME/cmdline-tools/
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Build APK
+        run: gradle :app:assembleDebug --no-daemon -Dorg.gradle.caching=false --stacktrace --info 2>&1 | tee build.log
+
+      - name: Upload APK and log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: hketaapp-fixed
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            build.log
