@@ -1,0 +1,46 @@
+name: Build APK - Minimal Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create project
+        run: |
+          rm -rf app
+          mkdir -p app/src/main/java/com/hkbus/allinone app/src/main/res/values app/src/main/assets
+          echo "include ':app'" > settings.gradle
+          echo "plugins { id 'com.android.application' version '8.2.2' apply false }" > build.gradle
+          echo "org.gradle.jvmargs=-Xmx2048m" > gradle.properties
+          echo "plugins { id 'com.android.application' } android { namespace 'com.hkbus.allinone'; compileSdk 34; defaultConfig { applicationId \"com.hkbus.allinone\"; minSdk 24; targetSdk 34 } }" > app/build.gradle
+          echo '<resources><string name="app_name">全港交通</string></resources>' > app/src/main/res/values/strings.xml
+          echo '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/><application android:label="@string/app_name" android:theme="@android:style/Theme.NoTitleBar"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>' > app/src/main/AndroidManifest.xml
+          echo '<html><body style="font-family:sans-serif;padding:20px;text-align:center"><h1>測試成功！</h1><p>如果見到呢個，代表 Build 已經得。</p><p>下一步再加 GPS。</p></body></html>' > app/src/main/assets/index.html
+          cat > app/src/main/java/com/hkbus/allinone/MainActivity.java <<'EOF'
+          package com.hkbus.allinone;
+          import android.app.Activity; import android.os.Bundle; import android.webkit.*; 
+          public class MainActivity extends Activity {
+            protected void onCreate(Bundle b){ super.onCreate(b); WebView wv=new WebView(this); wv.getSettings().setJavaScriptEnabled(true); wv.getSettings().setGeolocationEnabled(true); wv.setWebChromeClient(new WebChromeClient(){ public void onGeolocationPermissionsShowPrompt(String o, GeolocationPermissions.Callback c){c.invoke(o,true,false);} }); wv.setWebViewClient(new WebViewClient()); wv.loadUrl("file:///android_asset/index.html"); setContentView(wv); }
+          }
+          EOF
+      - uses: actions/setup-java@v5
+        with: { distribution: 'temurin', java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.5', cache-disabled: true }
+      - name: Install SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Build
+        run: gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: build-result
+          path: |
+            build.log
+            app/build/outputs/apk/debug/*.apk
