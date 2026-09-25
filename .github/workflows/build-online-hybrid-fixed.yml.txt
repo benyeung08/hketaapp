@@ -1,0 +1,125 @@
+name: Build APK - ONLINE HYBRID FIXED
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create project
+        run: |
+          rm -rf app
+          mkdir -p app/src/main/java/com/hkbus/allinone app/src/main/res/values app/src/main/assets
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=true
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.hkbus.allinone'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.hkbus.allinone"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 20
+                  versionName "4.2-online-fixed"
+              }
+          }
+          EOF
+
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources><string name="app_name">全港交通</string></resources>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+            <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+            <application android:label="@string/app_name" android:theme="@android:style/Theme.NoTitleBar" android:hardwareAccelerated="true" android:usesCleartextTraffic="true">
+              <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+            </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/assets/index.html <<'HTML'
+          <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>離線保底</title><style>body{font-family:sans-serif;background:#f5f5f7;padding:40px 20px;text-align:center}</style></head><body><h2>📡 載入線上版失敗，已切換離線版</h2><p>請檢查 Vercel / GitHub Pages 是否已修復</p></body></html>
+          HTML
+
+          cat > app/src/main/java/com/hkbus/allinone/MainActivity.java <<'EOF'
+          package com.hkbus.allinone;
+          import android.app.Activity; import android.os.Bundle; import android.webkit.*; import android.widget.Toast;
+          public class MainActivity extends Activity {
+              WebView wv; boolean fallbackDone=false;
+              final String PRIMARY_URL="https://hketaapp.vercel.app";
+              final String SECONDARY_URL="https://benyeung08.github.io/hketaapp/";
+              final String OFFLINE_URL="file:///android_asset/index.html";
+              protected void onCreate(Bundle b){
+                  super.onCreate(b);
+                  wv=new WebView(this);
+                  wv.getSettings().setJavaScriptEnabled(true);
+                  wv.getSettings().setDomStorageEnabled(true);
+                  wv.getSettings().setGeolocationEnabled(true);
+                  wv.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                  wv.setWebChromeClient(new WebChromeClient(){ public void onGeolocationPermissionsShowPrompt(String o, GeolocationPermissions.Callback c){c.invoke(o,true,false);} });
+                  wv.setWebViewClient(new WebViewClient(){
+                      public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err){ if(req.isForMainFrame() && !fallbackDone){ if(view.getUrl()!=null && view.getUrl().contains("vercel.app")){ view.loadUrl(SECONDARY_URL);} else { fallbackDone=true; Toast.makeText(MainActivity.this,"線上連線失敗，切換離線版",Toast.LENGTH_LONG).show(); view.loadUrl(OFFLINE_URL);} } }
+                      public void onReceivedHttpError(WebView view, WebResourceRequest req, WebResourceResponse resp){ if(req.isForMainFrame() && resp.getStatusCode()==404 && !fallbackDone){ if(view.getUrl()!=null && view.getUrl().contains("vercel.app")){ view.loadUrl(SECONDARY_URL);} else if(view.getUrl()!=null && view.getUrl().contains("github.io")){ fallbackDone=true; Toast.makeText(MainActivity.this,"Vercel+GitHub 404，切換離線",Toast.LENGTH_LONG).show(); view.loadUrl(OFFLINE_URL);} } }
+                  });
+                  wv.loadUrl(PRIMARY_URL);
+                  setContentView(wv);
+              }
+              public void onBackPressed(){ if(wv.canGoBack()) wv.goBack(); else super.onBackPressed(); }
+          }
+          EOF
+
+      - uses: actions/setup-java@v5
+        with: { distribution: 'temurin', java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.5', cache-disabled: true }
+      - name: Install SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Build APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+      - name: Upload result always
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: build-result-online
+          path: |
+            build.log
+            app/build/outputs/apk/debug/*.apk
