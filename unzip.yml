@@ -13,20 +13,20 @@ jobs:
       - name: 檢查有冇zip
         run: |
           ls -lh
-          if [ ! -f "bus-1933-clone.zip" ]; then
-            echo "❌ 搵唔到 bus-1933-clone.zip，請先upload上repo根目錄"
+          if [ ! -f "bus-1933-clone-v2.zip" ]; then
+            echo "❌ 搵唔到 bus-1933-clone-v2.zip，請先upload上repo根目錄"
             exit 1
           fi
 
       - name: 解壓
         run: |
-          unzip -o bus-1933-clone.zip -d .
+          unzip -o bus-1933-clone-v2.zip -d .
           # 如果zip入面有包多一層資料夾，移返出嚟
           if [ -d "bus-1933-clone" ]; then
             mv bus-1933-clone/* . 2>/dev/null || true
             rm -rf bus-1933-clone
           fi
-          rm bus-1933-clone.zip
+          rm bus-1933-clone-v2.zip
           ls -lh
 
       - name: 自動commit返去GitHub
