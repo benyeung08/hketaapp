@@ -1,0 +1,1 @@
+-keep class com.benyeung.bus1933clone.model.** { *; }
