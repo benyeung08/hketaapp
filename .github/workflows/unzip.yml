@@ -1,38 +1,5 @@
-name: 一鍵解壓
-on:
-  workflow_dispatch:
-
-jobs:
-  unzip:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 檢查有冇zip
-        run: |
-          ls -lh
-          if [ ! -f "bus-1933-clone-v2.zip" ]; then
-            echo "❌ 搵唔到 bus-1933-clone-v2.zip，請先upload上repo根目錄"
-            exit 1
-          fi
-
-      - name: 解壓
-        run: |
-          unzip -o bus-1933-clone-v2.zip -d .
-          # 如果zip入面有包多一層資料夾，移返出嚟
-          if [ -d "bus-1933-clone" ]; then
-            mv bus-1933-clone/* . 2>/dev/null || true
-            rm -rf bus-1933-clone
-          fi
-          rm bus-1933-clone-v2.zip
-          ls -lh
-
-      - name: 自動commit返去GitHub
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add .
-          git commit -m "自動解壓 bus-1933-clone.zip" || echo "冇新檔案"
-          git push
+gh repo create app1933-rainbow --public
+gh repo clone yourname/app1933-rainbow
+cd app1933-rainbow
+unzip ~/Downloads/app1933-github-unzip-ready.zip -d .
+git add . && git commit -m "init" && git push
