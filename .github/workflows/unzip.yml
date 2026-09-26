@@ -1,1 +1,22 @@
-   unzip -o *.zip -d ./
+name: 自動解壓 ZIP
+on: [push, workflow_dispatch]
+permissions:
+  contents: write
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          for zip in *.zip; do
+            if [ -f "$zip" ]; then
+              unzip -o "$zip" -d./
+              rm "$zip"
+            fi
+          done
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add.
+          git diff --staged --quiet || git commit -m "自動解壓 ZIP 檔案"
+          git push
