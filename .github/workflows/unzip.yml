@@ -1,5 +1,1 @@
-gh repo create app1933-rainbow --public
-gh repo clone yourname/app1933-rainbow
-cd app1933-rainbow
-unzip ~/Downloads/app1933-github-unzip-ready.zip -d .
-git add . && git commit -m "init" && git push
+   unzip -o *.zip -d ./
